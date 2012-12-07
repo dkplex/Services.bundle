@@ -1,0 +1,31 @@
+#import re
+
+APPKEY = 'Plex'
+APIKEY = 'qUkcfVVjosq3910c6LSN6pBg0O2XTyjz8kiwUc3L'
+APIURL = 'http://api.yousee.tv/rest/'
+NAME = "YouSee"
+
+def NormalizeURL(url):
+	return url
+
+####################################################################################################
+def MetadataObjectForURL(url):
+	vco = VideoClipObject()
+	slug = 'dr1' #url.rsplit('/',1)[1]
+	HTTP.Headers = {'X-API-KEY':APIKEY}
+	channel = JSON.ObjectFromURL(APIURL + 'livetv/channel/%s' % slug)
+#	Log.Debug(channel)
+	return vco
+	
+
+####################################################################################################
+def MediaObjectsForURL(url):
+#	id = 'e20'
+#	channel = JSON.ObjectFromURL('http://api.yousee.tv/livetv/channel/stream_id/e20/json', headers = {'X-API-KEY':APIKEY})
+#	seriesSlug = url.rsplit('/',2)[1]
+#	programSlug = url.rsplit('#',1)[1]
+#	json = JSON.ObjectFromURL(API_URL + 'broadcasts/ApplicationCode-%s.json' % API_KEY)
+	mo = MediaObject()
+
+	mo.add(PartObject( key = WebVideoURL(url)))
+	return [mo]
