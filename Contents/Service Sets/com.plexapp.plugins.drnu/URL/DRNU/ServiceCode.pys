@@ -22,14 +22,14 @@ def MetadataObjectForURL(url):
 	if '/se/' in url:
 		slug = url.split('/')[6].rsplit('#',1)[0]
 		try:
-			drMeta = JSON.ObjectFromURL("http://www.dr.dk/mu/ProgramCard?Slug='%s'" % slug)
+			drMeta = JSON.ObjectFromURL("http://www.dr.dk/mu/ProgramCard?Relations.Slug='%s'" % slug)
 		except:
 			raise Ex.MediaNotAvailable
 		vc.title = drMeta['Data'][0]['Title']
 		vc.summary = drMeta['Data'][0]['Description']
 		
 
-#	 ON_DEMAND RADIO
+#	 ON-DEMAND RADIO
 	elif '/player/' in url:
 		id = url.rsplit('/',1)[1]
 		try:
@@ -57,18 +57,53 @@ def MediaObjectsForURL(url):
 	if '/se/' in url:
 		slug = url.split('/')[6].rsplit('#',1)[0]
 #		time = url.rsplit('#!/')[1]
+		Log.Debug(slug)
+		Log.Debug('*************')
 		drMeta = JSON.ObjectFromURL("http://www.dr.dk/mu/ProgramCard?Slug='%s'" % slug)['Data'][0]
 		if drMeta.get('Assets'):
 			for assets in drMeta['Assets']:
 				if assets.get('Kind') == "VideoResource":
-					drAsset = JSON.ObjectFromURL(assets['Uri'])
-					for links in drAsset.get('links'):
-						if links.get('fileType') == 'mp4':
-							mol.append( MediaObject(bitrate = links.get('bitrateKbps', None),parts = [PartObject(key = RTMPVideoURL(links['uri'].split('mp4:')[0], clip = 'mp4:' +  links['uri'].split('mp4:')[1], width = links.get('width', None), height = links.get('height',None), live = False) )]))
-						elif links.get('filetype') == 'wmv':
-							mol.append( MediaObject(bitrate = links.get('bitrateKbps', None),parts = [PartObject(key = WindowsMediaVideoURL(links['uri'], width=links.get('width', None), height=links.get('height', None)))]))
+					drAsset = JSON.ObjectFromURL(assets['Uri']+'?format=pmm')
+					for links in drAsset['Links']:
+						if links['Target'] != 'Download':
+							mo = MediaObject()
+							mo.bitrate = links['Bitrate']
+							mo.aspect_ratio = int(links['Width']) / int(links['Height'])
+							mo.duration = int(drAsset.get('DurationInMilliseconds', -1))
+							
+							po = PartObject()
+							if links['Target'] == 'Android':
+								po.key = links['Uri']
+							elif links['Target'] == 'Ios':
+								po.key = links['Uri']
+							elif links['Target'] == 'Streaming':
+								po.key = RTMPVideoURL(links['Uri'].split('mp4:')[0], clip = 'mp4:%s' % links['Uri'].split('mp4:')[1], height = links.get('Height'), width = links.get('Width'), Live = False)
+							else:
+								po.key = links['Uri']
+							mo.add(po)
+							mol.append(mo)
+							
 						
-						
+					#===========================================================
+					# for links in drAsset.get('links'):
+					#	mo = MediaObject()
+					#	if 'bitrateKbs' in links: mo.bitrate = links.get('bitrateKbs')
+					#	if links.get('fileType') == 'mp4':
+					#		
+					#		po = PartObject()
+					#		VideoUrl = RTMPVideoURL(links['uri'].split('mp4:')[0], clip = 'mp4:' +  links['uri'].split('mp4:')[1] )
+					#		VideoUrl.width = links.get('width')
+					#		VideoUrl.height = links.get('height')
+					#		if 'width' not in links and 'height' not in links:
+					#			mo.video_resolution = 'SD'
+					#		VideoUrl.live = False 
+					#		mo.add(po)
+					#		mol.append( mo)
+					#	elif links.get('filetype') == 'wmv':
+					#		mol.append( MediaObject(bitrate = links.get('bitrateKbps', None),parts = [PartObject(key = WindowsMediaVideoURL(links['uri'], width=links.get('width', None), height=links.get('height', None)))]))
+					#	
+					#	
+					#===========================================================
 					break
 					
 #			Log.Debug(drMeta['Assets'])
@@ -81,34 +116,39 @@ def MediaObjectsForURL(url):
 
 
 ####################################################################################################
-@deferred
-def ondemandRadioFromURL(url):
+#
+# For later use, when implementing Radio
 
-	mol = []
-	mo = MediaObject()
-	id = url.rsplit('/',1)[1]
-	try:
-		jsonDrOD = JSON.ObjectFromURL(apiBaseRadioWebURL % 'MediaItem/' + str(id))
-	except:
-		raise Ex.MediaNotAvailable
-
-	try:	
-		jsonMedia =  JSON.ObjectFromURL(jsonDrOD['mediaItemResourceUrl'])
-
-		for links in jsonMedia['links']:
-			if links['fileType'] == 'mp4':
-				mo = MediaObject(video_resolution = 1080, audio_channels = 2, aspect_ratio = int(0 if 'width' not in links else links['width'])/int(0 if 'height' not in links else links['height']), video_codec = VideoCodec.H264, container = Container.MP4, duration = jsonMedia.get('durationInMilliseconds') ,bitrate = links.get('bitrateKbps'),parts = [PartObject(key = RTMPVideoURL(links['uri'].split('mp4:')[0], clip = 'mp4:' +  links['uri'].split('mp4:')[1], width = None if 'width' not in links else links['width'], height = None if 'height' not in links else links['height'], live = False) )])
-			elif links['fileType'] == 'wma':
-				mo = MediaObject(duration = jsonMedia.get('durationInMilliseconds') ,bitrate = links.get('bitrateKbps'),parts = [PartObject(key = WindowsMediaVideoURL(links['uri'], width=None if 'width' not in links else links['width'], height=None if 'height' not in links else links['height']))])
-			elif links['fileType'] == 'mp3':
-				mo = MediaObject(duration = jsonMedia.get('durationInMilliseconds') ,bitrate = links.get('bitrateKbps'),parts = [PartObject(key = Callback(PlayMP3, url = links['uri'], ext='.mp3'))])
-			mol.append(mo)
-	except:
-		mol.append(MediaObject(duration = jsonMedia.get('durationInMilliseconds') ,bitrate = links.get('bitrateKbps'),parts = [PartObject(key = jsonDrOD['mediaItemResourceUrl'] )]))
-
-	return mol
-
-####################################################################################################
-def PlayMP3(url):
-
-	return Redirect(url)
+#===============================================================================
+# @deferred
+# def ondemandRadioFromURL(url):
+# 
+#	mol = []
+#	mo = MediaObject()
+#	id = url.rsplit('/',1)[1]
+#	try:
+#		jsonDrOD = JSON.ObjectFromURL(apiBaseRadioWebURL % 'MediaItem/' + str(id))
+#	except:
+#		raise Ex.MediaNotAvailable
+# 
+#	try:	
+#		jsonMedia =  JSON.ObjectFromURL(jsonDrOD['mediaItemResourceUrl'])
+# 
+#		for links in jsonMedia['links']:
+#			if links['fileType'] == 'mp4':
+#				mo = MediaObject(video_resolution = 1080, audio_channels = 2, aspect_ratio = int(0 if 'width' not in links else links['width'])/int(0 if 'height' not in links else links['height']), video_codec = VideoCodec.H264, container = Container.MP4, duration = jsonMedia.get('durationInMilliseconds') ,bitrate = links.get('bitrateKbps'),parts = [PartObject(key = RTMPVideoURL(links['uri'].split('mp4:')[0], clip = 'mp4:' +  links['uri'].split('mp4:')[1], width = None if 'width' not in links else links['width'], height = None if 'height' not in links else links['height'], live = False) )])
+#			elif links['fileType'] == 'wma':
+#				mo = MediaObject(duration = jsonMedia.get('durationInMilliseconds') ,bitrate = links.get('bitrateKbps'),parts = [PartObject(key = WindowsMediaVideoURL(links['uri'], width=None if 'width' not in links else links['width'], height=None if 'height' not in links else links['height']))])
+#			elif links['fileType'] == 'mp3':
+#				mo = MediaObject(duration = jsonMedia.get('durationInMilliseconds') ,bitrate = links.get('bitrateKbps'),parts = [PartObject(key = Callback(PlayMP3, url = links['uri'], ext='.mp3'))])
+#			mol.append(mo)
+#	except:
+#		mol.append(MediaObject(duration = jsonMedia.get('durationInMilliseconds') ,bitrate = links.get('bitrateKbps'),parts = [PartObject(key = jsonDrOD['mediaItemResourceUrl'] )]))
+# 
+#	return mol
+# 
+# ####################################################################################################
+# def PlayMP3(url):
+# 
+#	return Redirect(url)
+#===============================================================================
